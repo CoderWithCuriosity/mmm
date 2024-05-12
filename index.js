@@ -1,6 +1,8 @@
 const puppeteer = require("puppeteer");
 const cheerio = require("cheerio");
 
+const gameLinks = [];
+
 async function extractMatchInfo(page) {
   // root link
   const rootLink = "https://www.sportybet.com/ng/m/sport/football/";
@@ -60,68 +62,168 @@ async function extractMatchInfo(page) {
 }
 
 async function statistics(page) {
+  // Define the scroll function
+  const scrollUntilElementVisible = async () => {
+    await page.evaluate(() => {
+      window.scrollBy(0, 300); // Scroll down by 100 pixels
+    });
+    await new Promise(resolve => setTimeout(resolve, 1000)); // Wait for 1 second for the page to settle
+  };
+  await scrollUntilElementVisible();
+  try {
     // Wait for the DOM to load
-    await page.waitForSelector(".sr-leaguepositionform__wrapper");
-    await page.waitForSelector(".sr-procvaltext__component-value.sr-procvaltext__component-value-medium");
-  
+    await page.waitForSelector(".sr-leaguepositionform__wrapper", {
+      timeout: 10000
+    });
+    await page.waitForSelector(
+      ".sr-procvaltext__component-value.sr-procvaltext__component-value-medium",
+      { timeout: 10000 }
+    );
+    // Wait for the home selector
+    await page.waitForSelector(".sr-last-matches.sr-last-matches--right", {
+      timeout: 5000
+    });
+    // Wait for the away selector
+    await page.waitForSelector(".sr-teamform__lastXTeam.srm-left", {
+      timeout: 10000
+    });
+
     // Extract home league position
     const homeLeaguePosition = await page.evaluate(() => {
-      const homeElement = document.querySelector(".sr-positionchart__wrapper.srt-base-1-home-1 .sr-positionchart__box-content");
+      const homeElement = document.querySelector(
+        ".sr-positionchart__wrapper.srt-base-1-home-1 .sr-positionchart__box-content"
+      );
       return homeElement ? homeElement.textContent.trim() : null;
     });
-  
+
     // Extract away league position
     const awayLeaguePosition = await page.evaluate(() => {
-      const awayElement = document.querySelector(".sr-positionchart__box-content.srt-away-1");
+      const awayElement = document.querySelector(
+        ".sr-positionchart__box-content.srt-away-1"
+      );
       return awayElement ? awayElement.textContent.trim() : null;
     });
 
     // Extract home and away values
-  const [homeValueElement, awayValueElement] = await page.$$(
-    ".sr-procvaltext__component-value.sr-procvaltext__component-value-medium"
-  );
+    const [homeValueElement, awayValueElement] = await page.$$(
+      ".sr-procvaltext__component-value.sr-procvaltext__component-value-medium"
+    );
 
-  // Extract home and away form value
-  const homeValue = await page.evaluate(homeValueElement => homeValueElement.textContent.trim(), homeValueElement);
-  const awayValue = await page.evaluate(awayValueElement => awayValueElement.textContent.trim(), awayValueElement);
+    // Extract home and away form value
+    const homeValue = await page.evaluate(
+      homeValueElement => homeValueElement.textContent.trim(),
+      homeValueElement
+    );
+    const awayValue = await page.evaluate(
+      awayValueElement => awayValueElement.textContent.trim(),
+      awayValueElement
+    );
 
-  
-    console.log("Home League Position:", homeLeaguePosition);
-    console.log("Away League Position:", awayLeaguePosition);
-    console.log("Home Form: ", homeValue);
-    console.log("Away Form: ", awayValue);
+    // Extracting home team results
+    const homeResults = await page.evaluate(() => {
+      const homeMatches = document.querySelectorAll(
+        ".sr-teamform__lastXTeam.srm-left .sr-last-matches__wdl span"
+      );
+      const results = {
+        W: 0,
+        D: 0,
+        L: 0
+      };
+
+      homeMatches.forEach(match => {
+        const result = match.innerText.trim();
+        if (result === "W") {
+          results.W++;
+        } else if (result === "D") {
+          results.D++;
+        } else if (result === "L") {
+          results.L++;
+        }
+      });
+
+      return results;
+    });
+
+    // Extracting away team results
+    const awayResults = await page.evaluate(() => {
+      const awayMatches = document.querySelectorAll(
+        ".sr-last-matches.sr-last-matches--right .sr-last-matches__wdl span"
+      );
+      const results = {
+        W: 0,
+        D: 0,
+        L: 0
+      };
+
+      awayMatches.forEach(match => {
+        const result = match.innerText.trim();
+        if (result === "W") {
+          results.W++;
+        } else if (result === "D") {
+          results.D++;
+        } else if (result === "L") {
+          results.L++;
+        }
+      });
+
+      return results;
+    });
+
+    // console.log("Home League Position:", homeLeaguePosition);
+    // console.log("Away League Position:", awayLeaguePosition);
+    // console.log("Home Form: ", homeValue);
+    // console.log("Away Form: ", awayValue);
+
+    // console.log("Home Team Results:", homeResults);
+    // console.log("Away Team Results:", awayResults);
+
+    // Checking if they position is very close
+    if (
+      Math.abs(parseInt(homeLeaguePosition) - parseInt(awayLeaguePosition)) > 1
+    ) {
+      if (parseInt(homeLeaguePosition) < parseInt(awayLeaguePosition)) {
+        if (
+          parseInt(homeValue.replace("%", "")) >
+          parseInt(awayValue.replace("%", ""))
+        ) {
+          if (homeResults.W >= 3 && homeResults.W < 5) {
+            if (
+              parseInt(homeValue.replace("%", "")) -
+                parseInt(awayValue.replace("%", "")) >=
+              40
+            ) {
+              const pageUrl = await page.url();
+              gameLinks.push(pageUrl);
+            }
+          }
+        }
+      } else if (parseInt(awayLeaguePosition) < parseInt(homeLeaguePosition)) {
+        if (
+          parseInt(awayValue.replace("%", "")) >
+          parseInt(homeValue.replace("%", ""))
+        ) {
+          //Avoid consecutive 5 wins
+          if (awayResults.W >= 3 && awayResults.W < 5) {
+            if (
+              parseInt(awayValue.replace("%", "")) -
+                parseInt(homeValue.replace("%", "")) >=
+              40
+            ) {
+              const pageUrl = await page.url();
+              gameLinks.push(pageUrl);
+            }
+          }
+        }
+      }
+    }
+  } catch (error) {
+    console.log("an error occurred: ", error);
   }
-  
-  
+}
 
 (async () => {
   const browser = await puppeteer.launch({ headless: false });
   const page = await browser.newPage();
-
-  // Go to the URL
-  await page.goto("https://www.sportybet.com/ng/");
-
-  // Fill in phone number
-  await page.type('input[name="phone"]', "9167820580");
-
-  // Fill in password
-  await page.type('input[name="psd"]', "Pastor40414243");
-
-  // Click login button
-  await page.click('button[name="logIn"]');
-
-  let login = true;
-  try {
-    await page.waitForSelector("span#j_balance", { timeout: 50000 });
-  } catch (error) {
-    login = false;
-  }
-
-  if (!login) {
-    console.log("Login failed");
-    await browser.close();
-    return;
-  }
 
   // Get today's day
   const today = new Date().getDay();
@@ -171,16 +273,26 @@ async function statistics(page) {
     await new Promise(resolve => setTimeout(resolve, 1000)); // Wait for 1 second for the page to settle
   };
 
-  let count = 1;
+  let count = 0;
   let links = [];
   // Keep scrolling until the element is visible
-  while (count <= 3) {
+  while (count < 20) {
     // Extract the links
     await scrollUntilElementVisible();
-    links = await extractMatchInfo(page);
-    console.log(links);
+    let link = await extractMatchInfo(page);
+    for (let i = 0; i < link.length; i++) {
+      // Extract data key attribute
+      const dataKey = link[i].dataKey;
+
+      // Check if a match with the same data key already exists
+      const existingMatch = links.find(match => match.dataKey === dataKey);
+      if (!existingMatch) {
+        links.push(link[i]);
+      }
+    }
+    links.push(...link);
+    await scrollUntilElementVisible();
     count++;
-    // await scrollUntilElementVisible();
     // const stopLoadMore = await page.$(".bet-load-more-none");
     // if (stopLoadMore) {
     //   // The element is visible, stop scrolling
@@ -192,20 +304,22 @@ async function statistics(page) {
   for (let i = 0; i < links.length; i++) {
     const newPage = await browser.newPage();
     newPage.goto(links[i].link);
-    //Wait for 5 seconds
-    await new Promise(resolve => setTimeout(resolve, 5000));
 
     // Click on stat
     try {
-      await newPage.waitForSelector(".m-icon.m-icon-stat", { timeout: 50000 });
+      await newPage.waitForSelector(".m-icon.m-icon-stat", { timeout: 10000 });
       await newPage.click(".m-icon.m-icon-stat");
-      console.log("\n" + links[i].teams)
-      await statistics(newPage);
+      try {
+        console.log("\n" + links[i].teams);
+        await statistics(newPage);
+      } catch (error) {
+        console.log(error);
+      }
     } catch (error) {
       console.log(error);
     }
     await newPage.close();
   }
-
-  //   await browser.close();
+  console.log(gameLinks);
+  await browser.close();
 })();
