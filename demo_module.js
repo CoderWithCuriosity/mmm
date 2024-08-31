@@ -49,8 +49,7 @@ const gameLinks = [];
     // const tomorrowUrl = `https://www.sportybet.com/ng/m/sport/football/today?sort=0`;
     // const tomorrowUrl = `https://www.sportybet.com/ng/m/sport/football?time=${time +
     //   1}&sort=0`;
-    const tomorrowUrl = `https://www.sportybet.com/ng/m/sport/football?sort=1&time=${time +
-      1}`;
+    const tomorrowUrl = `https://www.sportybet.com/ng/m/sport/football?sort=1&time=${time + 1}`;
 
     // Open tomorrow's URL
     await page.goto(tomorrowUrl);
@@ -92,9 +91,7 @@ const gameLinks = [];
               try {
                 console.log("\n" + links[i].teams);
                 const pageUrl = await statistics(newPage);
-                if(pageUrl != undefined){
-                  gameLinks.push(pageUrl);
-                }
+                gameLinks.push(pageUrl);
               } catch (error) {
                 console.log(error);
               }
