@@ -69,18 +69,48 @@ const gameLinks = [];
     // Keep scrolling until the element is visible
     //Count
     let count = 0;
+
+    // Start extraction
+    const fs = require('fs');
+
+    // Function to read file and convert it to an array
+    function convertTxtToArray(filePath) {
+        try {
+            // Read file contents
+            const data = fs.readFileSync(filePath, 'utf8');
+            
+            // Split the contents by line break to create an array of URLs
+            const urlArray = data.split('\n').filter(Boolean); // filter(Boolean) removes any empty lines
+            
+            return urlArray;
+        } catch (err) {
+            console.error('Error reading file:', err);
+            return [];
+        }
+    }
+    
+    // Path to the text file
+    const filePath = 'links.txt';
+    
+    // Convert file content to an array
+    links = convertTxtToArray(filePath);
+    console.log(links.length);  
+    //end extraction
+
     while (true) {
       count++;
 
       // Extract the links
-      await scrollUntilElementVisible();
-      links = await extractMatchInfo(page);
+      // await scrollUntilElementVisible();
+      // links = await extractMatchInfo(page);
       if (links != undefined) {
         for (let i = 0; i < links.length; i++) {
-          if (!obeyLink.includes(links[i].link)) {
+          // if (!obeyLink.includes(links[i].link)) {
+          if (!obeyLink.includes(links[i])) {
             // Analysis is done here
             const newPage = await browser.newPage();
-            newPage.goto(links[i].link);
+            // newPage.goto(links[i].link);
+            newPage.goto(links[i]);
             await newPage.waitForNavigation();
             // Click on stat
             try {
@@ -89,7 +119,8 @@ const gameLinks = [];
               });
               await newPage.click(".m-icon.m-icon-stat");
               try {
-                console.log("\n" + links[i].teams);
+                // console.log("\n" + links[i].teams);
+                
                 const pageUrl = await statistics(newPage);
                 if(pageUrl != undefined){
                   gameLinks.push(pageUrl);
@@ -103,7 +134,8 @@ const gameLinks = [];
             if (newPage != undefined) {
               await newPage.close();
             }
-            obeyLink.push(links[i].link);
+            // obeyLink.push(links[i].link);
+            obeyLink.push(links[i]);
           }
         }
         console.log("Obey Link: ", obeyLink);
